@@ -1,4 +1,4 @@
-# 📝 To-Do List API
+# To-Do List API
 
 A small REST API for managing a to-do list, where **tasks** are grouped into **categories**.
 Built with Java 17, Spring Boot 3, and Oracle.
@@ -11,27 +11,25 @@ Built with Java 17, Spring Boot 3, and Oracle.
 
 ---
 
-## 📁 Repository structure
+## Repository structure
 
 ```
 .
-├── 📂 diagrams/           # Design diagrams (this README)
-├── 📂 todo-api/           # The Spring Boot REST API
-└── 📂 todo-api-tests/     # Playwright API test suite (51 automated tests)
+├── diagrams/           # Design diagrams (this README)
+├── todo-api/           # The Spring Boot REST API
+└── todo-api-tests/     # Playwright API test suite (51 automated tests)
 ```
 
-## ✨ Features
+## Features
 
-| | |
-|---|---|
-| 🗂️ | Full **CRUD** for Categories and Tasks |
-| 🔒 | A Category **can't be deleted** while it still has Tasks |
-| ✅ | Task fields: title (required), description, status (`TODO` / `IN_PROGRESS` / `DONE`), due date (can't be in the past), category (required) |
-| 🔎 | Task listing supports **filtering** by status and/or category, with **paging** |
-| ⚠️ | Consistent, structured error responses (validation / not-found / conflict) |
-| 📘 | Interactive API docs via **Swagger UI** |
+- Full **CRUD** for Categories and Tasks.
+- 🔒 A Category **can't be deleted** while it still has Tasks.
+- Task fields: title (required), description, status (`TODO` / `IN_PROGRESS` / `DONE`), due date (can't be in the past), category (required).
+- Task listing supports **filtering** by status and/or category, with **paging**.
+- ⚠️ Consistent, structured error responses (validation / not-found / conflict).
+- Interactive API docs via **Swagger UI**.
 
-## 🧰 Tech stack
+## Tech stack
 
 | Layer | Technology |
 |---|---|
@@ -41,7 +39,7 @@ Built with Java 17, Spring Boot 3, and Oracle.
 | API docs | springdoc-openapi (Swagger UI) |
 | Testing | Playwright (TypeScript) — API testing mode |
 
-## 🚀 Getting started
+## Getting started
 
 1. **Run the API** → see [`todo-api/README.md`](./todo-api/README.md) for the Oracle setup and how to start the server.
 2. **Try it out** → open `http://localhost:8080/swagger-ui.html` once it's running.
@@ -49,7 +47,7 @@ Built with Java 17, Spring Boot 3, and Oracle.
 
 ---
 
-## 📊 Diagrams
+## Diagrams
 
 A visual tour of the system, in order — what a client can do, how one request flows through it, how the data is shaped, and how the code is organized.
 
@@ -70,7 +68,7 @@ A visual tour of the system, in order — what a client can do, how one request 
 ![Class Diagram](./diagrams/4.class-diagram.png)
 
 <details>
-<summary>🔍 <strong>Class diagram, by layer</strong> (click to expand)</summary>
+<summary><strong>Class diagram, by layer</strong> (click to expand)</summary>
 
 **Domain model** — entities and their DTOs
 ![Domain Model](./diagrams/class-diagram-domain.png)
@@ -84,7 +82,7 @@ A visual tour of the system, in order — what a client can do, how one request 
 </details>
 
 <details>
-<summary>🔁 <strong>Sequence diagrams</strong> — four key requests end-to-end (click to expand)</summary>
+<summary><strong>Sequence diagrams</strong> — four key requests end-to-end (click to expand)</summary>
 
 **Create Task** — `POST /api/tasks`
 ![Sequence - Create Task](./diagrams/sequence-create-task.png)
@@ -102,4 +100,11 @@ A visual tour of the system, in order — what a client can do, how one request 
 
 ---
 
+## Engineering notes
 
+A few behaviors that aren't obvious from reading the code alone:
+
+- **`PUT` is a full replace.** Omitted fields are not left untouched — `status` resets to `TODO`, and `description`/`dueDate` are cleared, exactly as on create.
+- **No N+1 queries.** `GET /api/categories` fetches every category's task count with one grouped query instead of one extra query per category.
+- **Paging is hardened.** Page size is capped at 100; an invalid/zero size falls back to a default; results are always sorted by `id` so paging stays deterministic.
+- **Duplicate names are caught twice.** Checked case-insensitively before insert (→ `409`), with a DB-constraint fallback for the race where two identical names arrive at the same time — never a raw `500`.
