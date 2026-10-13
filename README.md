@@ -98,13 +98,3 @@ A visual tour of the system, in order — what a client can do, how one request 
 
 </details>
 
----
-
-## Engineering notes
-
-A few behaviors that aren't obvious from reading the code alone:
-
-- **`PUT` is a full replace.** Omitted fields are not left untouched — `status` resets to `TODO`, and `description`/`dueDate` are cleared, exactly as on create.
-- **No N+1 queries.** `GET /api/categories` fetches every category's task count with one grouped query instead of one extra query per category.
-- **Paging is hardened.** Page size is capped at 100; an invalid/zero size falls back to a default; results are always sorted by `id` so paging stays deterministic.
-- **Duplicate names are caught twice.** Checked case-insensitively before insert (→ `409`), with a DB-constraint fallback for the race where two identical names arrive at the same time — never a raw `500`.
