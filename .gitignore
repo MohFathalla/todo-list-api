@@ -14,6 +14,3 @@ todo-api-tests/test-results/
 *.log
 HELP.md
 
-# Local DB credential notes - must never be committed
-Db connection.txt
-Db connection - Copy.txt

@@ -1,13 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
-  pom.xml
-  الهدف: تعريف المشروع والمكتبات المطلوبة لتنفيذ بنود الـ Brief:
-    - Spring Boot Web  -> بناء REST API (Add/View/Edit/Delete للـ Category والـ Task)
-    - Spring Data JPA  -> التعامل مع قاعدة بيانات Oracle (Entities, Repositories)
-    - Oracle JDBC      -> الاتصال الفعلي بـ Oracle ("store the data in an Oracle database")
-    - Validation       -> فرض قواعد الإدخال (title مطلوب، due date ماينفعش في الماضي)
-    - springdoc-openapi -> توليد واجهة Swagger ("Add Swagger so the API can be tried out")
--->
+
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
