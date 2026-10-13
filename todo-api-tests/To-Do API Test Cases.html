@@ -1,0 +1,382 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>To-Do API Test Cases</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Source+Sans+3:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  /* Layout: a cover (title + stat tiles) followed by four accent-coded
+     suite sections, each a scannable table — one row per test case. */
+  :root{
+    --bg:#f7f6f3; --surface:#ffffff; --surface-2:#f1efe9;
+    --border:#e2ded3; --fg:#242220; --muted:#6c675d;
+    --accent:#2f6f5e; --accent-soft:#e3efe9;
+
+    --cat:#2e5fa3;   --cat-soft:#e7eef8;
+    --task:#7a4fae;  --task-soft:#f0e9f8;
+    --page:#1f8a7a;  --page-soft:#e1f3ef;
+    --err:#b2412f;   --err-soft:#f8e9e5;
+
+    --ok:#1f7a44;    --ok-soft:#e5f3ea;
+    --warn:#9a6b11;  --warn-soft:#faf0dd;
+    --bad:#b02a37;   --bad-soft:#fbe7e8;
+    --miss:#5b5750;  --miss-soft:#eceae5;
+
+    --font-head:'Libre Franklin',system-ui,sans-serif;
+    --font-body:'Source Sans 3',system-ui,sans-serif;
+    --font-mono:'IBM Plex Mono',ui-monospace,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#17161a; --surface:#1e1d22; --surface-2:#242228;
+      --border:#34323a; --fg:#eeece8; --muted:#a39d91;
+      --accent:#5fb89c; --accent-soft:#1d2e29;
+
+      --cat:#7aa6e6;  --cat-soft:#1b2838;
+      --task:#c3a0ec; --task-soft:#2a2038;
+      --page:#5fc8b4; --page-soft:#132b27;
+      --err:#e39385;  --err-soft:#311f1c;
+
+      --ok:#6cc98f;   --ok-soft:#16261c;
+      --warn:#e0b154; --warn-soft:#2c2414;
+      --bad:#ef9089;  --bad-soft:#2e1a1c;
+      --miss:#b7b2a8; --miss-soft:#232229;
+      color-scheme:dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#17161a; --surface:#1e1d22; --surface-2:#242228;
+    --border:#34323a; --fg:#eeece8; --muted:#a39d91;
+    --accent:#5fb89c; --accent-soft:#1d2e29;
+    --cat:#7aa6e6; --cat-soft:#1b2838;
+    --task:#c3a0ec; --task-soft:#2a2038;
+    --page:#5fc8b4; --page-soft:#132b27;
+    --err:#e39385; --err-soft:#311f1c;
+    --ok:#6cc98f; --ok-soft:#16261c;
+    --warn:#e0b154; --warn-soft:#2c2414;
+    --bad:#ef9089; --bad-soft:#2e1a1c;
+    --miss:#b7b2a8; --miss-soft:#232229;
+    color-scheme:dark;
+  }
+
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--fg);font-family:var(--font-body);
+    padding-inline:20px;padding-block:28px 56px;}
+  .wrap{max-width:980px;margin-inline:auto;}
+
+  header.cover{display:flex;flex-direction:column;gap:14px;padding-block:6px 8px;}
+  .eyebrow{font-family:var(--font-mono);font-size:12px;letter-spacing:.09em;
+    text-transform:uppercase;color:var(--accent);font-weight:600;}
+  h1{font-family:var(--font-head);font-weight:800;font-size:clamp(28px,4vw,40px);
+    margin:0;text-wrap:balance;letter-spacing:-.01em;}
+  .sub{color:var(--muted);font-size:15.5px;max-width:62ch;line-height:1.55;margin:0;}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;color:var(--muted);
+    font-family:var(--font-mono);margin-top:2px;}
+  .meta b{color:var(--fg);font-weight:600;}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+    gap:10px;margin-block:22px 8px;}
+  .stat{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    padding:14px 16px;border-left:3px solid var(--stat-c,var(--accent));}
+  .stat .n{font-family:var(--font-head);font-weight:800;font-size:26px;
+    font-variant-numeric:tabular-nums;line-height:1;}
+  .stat .l{color:var(--muted);font-size:12.5px;margin-top:5px;}
+
+  section.suite{margin-top:40px;}
+  .suite-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
+    border-bottom:2px solid var(--sc);padding-bottom:9px;margin-bottom:14px;}
+  .suite-head h2{font-family:var(--font-head);font-size:19px;font-weight:700;margin:0;color:var(--sc);}
+  .suite-head .count{font-family:var(--font-mono);font-size:12px;color:var(--muted);
+    background:var(--sc-soft);padding:3px 9px;border-radius:99px;}
+  .suite-head .file{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-left:auto;}
+  .suite-desc{color:var(--muted);font-size:13.5px;margin:0 0 14px;line-height:1.5;max-width:70ch;}
+
+  .tcard{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    padding:14px 16px;margin-bottom:10px;border-left:3px solid var(--sc);}
+  .tcard-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
+  .tid{font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--sc);
+    background:var(--sc-soft);padding:2px 8px;border-radius:5px;}
+  .ttitle{font-weight:600;font-size:14.5px;}
+
+  .tgrid{display:grid;grid-template-columns:120px 1fr;gap:3px 14px;font-size:13.5px;}
+  .tgrid .k{color:var(--muted);font-size:11.5px;text-transform:uppercase;
+    letter-spacing:.05em;padding-top:2px;}
+  .tgrid .v{line-height:1.55;min-width:0;}
+  .tgrid .v ol{margin:0;padding-left:18px;}
+  .tgrid .v ol li{margin-bottom:2px;}
+  .pre-none{color:var(--muted);font-style:italic;}
+
+  .chip{display:inline-flex;align-items:center;font-family:var(--font-mono);
+    font-size:11px;font-weight:600;padding:1px 7px;border-radius:5px;
+    letter-spacing:.02em;white-space:nowrap;}
+  .m-GET{background:var(--cat-soft);color:var(--cat);}
+  .m-POST{background:var(--ok-soft);color:var(--ok);}
+  .m-PUT{background:var(--warn-soft);color:var(--warn);}
+  .m-DELETE{background:var(--bad-soft);color:var(--bad);}
+  .path{font-family:var(--font-mono);font-size:12.5px;color:var(--fg);
+    background:var(--surface-2);padding:1px 6px;border-radius:4px;}
+
+  .s-2xx{background:var(--ok-soft);color:var(--ok);}
+  .s-400{background:var(--warn-soft);color:var(--warn);}
+  .s-404{background:var(--miss-soft);color:var(--miss);}
+  .s-409{background:var(--bad-soft);color:var(--bad);}
+
+  footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--border);
+    color:var(--muted);font-size:12.5px;}
+
+  @media (max-width:560px){
+    .tgrid{grid-template-columns:1fr;}
+    .tgrid .k{padding-top:8px;}
+    .suite-head .file{margin-left:0;}
+  }
+</style>
+
+<div class="wrap">
+  <header class="cover">
+    <span class="eyebrow">QA Documentation</span>
+    <h1>To-Do API — Playwright Test Suite</h1>
+    <p class="sub">A full record of the automated API test suite exercised against the Spring Boot /
+      Oracle To-Do List service. Each case lists the pre-conditions, the steps a tester (human or
+      script) carries out, and the result that counts as a pass.</p>
+    <div class="meta">
+      <span>Target: <b>http://localhost:8080</b></span>
+      <span>Framework: <b>Playwright (TypeScript)</b></span>
+      <span>Scope: <b>REST API, no UI</b></span>
+    </div>
+  </header>
+
+  <div class="stats" id="stats"></div>
+  <div id="suites"></div>
+
+  <footer>Generated from the project's Playwright spec files (<code style="font-family:var(--font-mono)">todo-api-tests/tests/*.spec.ts</code>). Every case below maps to exactly one automated test.</footer>
+</div>
+
+<script>
+const SUITES = [
+  {
+    key:'cat', name:'Categories API', file:'categories.spec.ts',
+    color:'var(--cat)', soft:'var(--cat-soft)',
+    desc:'CRUD for categories, plus the two business rules: names must be unique (case-insensitive) and a category can’t be deleted while it still holds tasks.',
+    tests:[
+      {id:'C-01', title:'Create a new category', pre:null,
+        steps:['<span class="chip m-POST">POST</span> <span class="path">/api/categories</span> with a unique <code>name</code>'],
+        exp:['<span class="chip s-2xx">201</span> Created', '<code>id</code> is returned and <code>taskCount</code> = 0']},
+      {id:'C-02', title:'Reject a blank category name', pre:null,
+        steps:['POST with <code>name: ""</code>'],
+        exp:['<span class="chip s-400">400</span> Bad Request, error = "Validation Failed"', '<code>details</code> names the <code>name</code> field']},
+      {id:'C-03', title:'Reject a missing name field', pre:null,
+        steps:['POST with an empty body <code>{}</code>'],
+        exp:['<span class="chip s-400">400</span> Bad Request']},
+      {id:'C-04', title:'Reject a duplicate category name', pre:'A category named "Duplicate" already exists',
+        steps:['POST using that exact same name'],
+        exp:['<span class="chip s-409">409</span> Conflict, error = "Conflict"']},
+      {id:'C-05', title:'Reject a name that differs only in case', pre:'A category named "CaseCheck" already exists',
+        steps:['POST with the same name in <code>UPPERCASE</code>'],
+        exp:['<span class="chip s-409">409</span> Conflict']},
+      {id:'C-06', title:'List all categories', pre:'A category named "ListMe" exists',
+        steps:['<span class="chip m-GET">GET</span> <span class="path">/api/categories</span>'],
+        exp:['<span class="chip s-2xx">200</span> OK', 'the created category is present in the returned array']},
+      {id:'C-07', title:'Get a category by id', pre:'A category exists',
+        steps:['GET <span class="path">/api/categories/{id}</span>'],
+        exp:['<span class="chip s-2xx">200</span> OK', '<code>id</code> and <code>name</code> match what was created']},
+      {id:'C-08', title:'Get a non-existent category', pre:null,
+        steps:['GET <span class="path">/api/categories/999999999</span>'],
+        exp:['<span class="chip s-404">404</span> Not Found']},
+      {id:'C-09', title:'Update a category’s name', pre:'A category named "Original" exists',
+        steps:['<span class="chip m-PUT">PUT</span> <span class="path">/api/categories/{id}</span> with a new name'],
+        exp:['<span class="chip s-2xx">200</span> OK, <code>name</code> reflects the update']},
+      {id:'C-10', title:'Update a category to keep its own name', pre:'A category named "KeepName" exists',
+        steps:['PUT the category with its own unchanged name'],
+        exp:['<span class="chip s-2xx">200</span> OK &mdash; not treated as a duplicate of itself']},
+      {id:'C-11', title:'Reject renaming to another category’s name', pre:'Two categories, A and B, exist',
+        steps:['PUT category A using category B’s name'],
+        exp:['<span class="chip s-409">409</span> Conflict']},
+      {id:'C-12', title:'Update a non-existent category', pre:null,
+        steps:['PUT <span class="path">/api/categories/999999999</span>'],
+        exp:['<span class="chip s-404">404</span> Not Found']},
+      {id:'C-13', title:'Delete a category with no tasks', pre:'A category named "Empty" exists, with zero tasks',
+        steps:['<span class="chip m-DELETE">DELETE</span> <span class="path">/api/categories/{id}</span>','GET the same id'],
+        exp:['<span class="chip s-2xx">204</span> No Content on delete', 'the follow-up GET returns <span class="chip s-404">404</span>']},
+      {id:'C-14', title:'Refuse to delete a category that still has tasks', pre:'A category named "Blocked" has one task in it',
+        steps:['DELETE that category'],
+        exp:['<span class="chip s-409">409</span> Conflict', 'the category still exists afterward (GET returns <span class="chip s-2xx">200</span>)']},
+      {id:'C-15', title:'Delete a non-existent category', pre:null,
+        steps:['DELETE <span class="path">/api/categories/999999999</span>'],
+        exp:['<span class="chip s-404">404</span> Not Found']},
+    ]
+  },
+  {
+    key:'task', name:'Tasks API', file:'tasks.spec.ts',
+    color:'var(--task)', soft:'var(--task-soft)',
+    desc:'CRUD for tasks and the field-level rules from the brief: a required title, an optional description, a status that defaults to TODO, and a due date that can’t be in the past.',
+    tests:[
+      {id:'T-01', title:'Create a task with every field populated', pre:'A category exists',
+        steps:['POST <span class="path">/api/tasks</span> with title, description, <code>status: IN_PROGRESS</code>, a future <code>dueDate</code>, and <code>categoryId</code>'],
+        exp:['<span class="chip s-2xx">201</span> Created', 'response <code>status</code>, <code>categoryId</code> and <code>categoryName</code> all match']},
+      {id:'T-02', title:'Create a task with only the required fields', pre:'A category exists',
+        steps:['POST with just <code>title</code> and <code>categoryId</code>'],
+        exp:['<span class="chip s-2xx">201</span> Created', '<code>description</code> and <code>dueDate</code> come back empty']},
+      {id:'T-03', title:'Default status to TODO when omitted', pre:'A category exists',
+        steps:['POST a task with no <code>status</code> field'],
+        exp:['<span class="chip s-2xx">201</span> Created, <code>status</code> = <code>TODO</code>']},
+      {id:'T-04', title:'Accept a title with SQL metacharacters', pre:'A category exists',
+        steps:['POST a title such as <code>Robert\'); DROP TABLE Task;--</code>','GET the task list for that category'],
+        exp:['<span class="chip s-2xx">201</span> Created, title stored exactly as sent', 'the list endpoint still works &mdash; proves parameterized queries, not string-built SQL']},
+      {id:'T-05', title:'Reject a blank title', pre:'A category exists',
+        steps:['POST with <code>title: ""</code>'],
+        exp:['<span class="chip s-400">400</span> Bad Request']},
+      {id:'T-06', title:'Reject a due date in the past', pre:'A category exists',
+        steps:['POST with <code>dueDate: 2000-01-01</code>'],
+        exp:['<span class="chip s-400">400</span> Bad Request', '<code>details</code> names the <code>dueDate</code> field']},
+      {id:'T-07', title:'Accept a due date of exactly today', pre:'A category exists',
+        steps:['POST with <code>dueDate</code> = today'],
+        exp:['<span class="chip s-2xx">201</span> Created']},
+      {id:'T-08', title:'Reject a task with no category', pre:null,
+        steps:['POST with no <code>categoryId</code>'],
+        exp:['<span class="chip s-400">400</span> Bad Request']},
+      {id:'T-09', title:'Reject a task for a category that doesn’t exist', pre:null,
+        steps:['POST with <code>categoryId: 999999999</code>'],
+        exp:['<span class="chip s-404">404</span> Not Found']},
+      {id:'T-10', title:'Get a task by id', pre:'A task exists',
+        steps:['GET <span class="path">/api/tasks/{id}</span>'],
+        exp:['<span class="chip s-2xx">200</span> OK, <code>id</code> matches']},
+      {id:'T-11', title:'Get a non-existent task', pre:null,
+        steps:['GET <span class="path">/api/tasks/999999999</span>'],
+        exp:['<span class="chip s-404">404</span> Not Found']},
+      {id:'T-12', title:'Update a task’s title, status and due date', pre:'A task exists with status TODO',
+        steps:['PUT the task with a new title, <code>status: DONE</code> and a new <code>dueDate</code>'],
+        exp:['<span class="chip s-2xx">200</span> OK, title and status reflect the update']},
+      {id:'T-13', title:'Update resets status to TODO when omitted', pre:'A task exists with status DONE',
+        steps:['PUT the task without a <code>status</code> field'],
+        exp:['<span class="chip s-2xx">200</span> OK, <code>status</code> resets to <code>TODO</code> &mdash; PUT fully replaces the task']},
+      {id:'T-14', title:'Update clears description and due date when omitted', pre:'A task has a description and a due date set',
+        steps:['PUT the task with only <code>title</code> and <code>categoryId</code>'],
+        exp:['<span class="chip s-2xx">200</span> OK, <code>description</code> and <code>dueDate</code> are now empty']},
+      {id:'T-15', title:'Move a task to a different category', pre:'Two categories exist; the task is in category A',
+        steps:['PUT the task with <code>categoryId</code> set to category B'],
+        exp:['<span class="chip s-2xx">200</span> OK, <code>categoryId</code> is now B']},
+      {id:'T-16', title:'Update a non-existent task', pre:'A category exists',
+        steps:['PUT <span class="path">/api/tasks/999999999</span>'],
+        exp:['<span class="chip s-404">404</span> Not Found']},
+      {id:'T-17', title:'Delete an existing task', pre:'A task exists',
+        steps:['DELETE <span class="path">/api/tasks/{id}</span>','GET the same id'],
+        exp:['<span class="chip s-2xx">204</span> No Content on delete', 'the follow-up GET returns <span class="chip s-404">404</span>']},
+      {id:'T-18', title:'Delete a non-existent task', pre:null,
+        steps:['DELETE <span class="path">/api/tasks/999999999</span>'],
+        exp:['<span class="chip s-404">404</span> Not Found']},
+      {id:'T-19', title:'A freed category can be deleted once its task is gone', pre:'A category has exactly one task',
+        steps:['1. DELETE the category (expect a refusal)','2. DELETE the task','3. DELETE the category again'],
+        exp:['step 1 &rarr; <span class="chip s-409">409</span> Conflict', 'step 3 &rarr; <span class="chip s-2xx">204</span> No Content']},
+    ]
+  },
+  {
+    key:'page', name:'Filtering &amp; Paging', file:'filtering-and-paging.spec.ts',
+    color:'var(--page)', soft:'var(--page-soft)',
+    desc:'The task list endpoint, verified against a fixed seeded data set: filtering by status, by category, by both together, and paging through the results.',
+    tests:[
+      {id:'F-01', title:'Paged response includes content and metadata', pre:'Seed: one category with 3 TODO + 2 IN_PROGRESS + 1 DONE tasks',
+        steps:['GET <span class="path">/api/tasks?categoryId={id}&amp;page=0&amp;size=10</span>'],
+        exp:['<span class="chip s-2xx">200</span> OK', 'response has <code>content</code>, <code>totalElements</code>, <code>totalPages</code>; <code>totalElements</code> ≥ 6']},
+      {id:'F-02', title:'Filter by status only', pre:'Seeded data set (see F-01)',
+        steps:['GET <span class="path">/api/tasks?status=DONE&amp;size=100</span>'],
+        exp:['<span class="chip s-2xx">200</span> OK, every returned task has <code>status = DONE</code>']},
+      {id:'F-03', title:'Filter by category only', pre:'Seeded data set (see F-01)',
+        steps:['GET <span class="path">/api/tasks?categoryId={id}&amp;size=100</span>'],
+        exp:['<span class="chip s-2xx">200</span> OK, exactly 6 tasks returned, all in that category']},
+      {id:'F-04', title:'Filter by status and category combined', pre:'Seeded data set (see F-01)',
+        steps:['GET <span class="path">/api/tasks?status=TODO&amp;categoryId={id}&amp;size=100</span>'],
+        exp:['<span class="chip s-2xx">200</span> OK, exactly 3 tasks match both filters']},
+      {id:'F-05', title:'A filter with no matches returns an empty page, not an error', pre:'A second, unrelated category exists',
+        steps:['GET with a status/category combination that matches nothing'],
+        exp:['<span class="chip s-2xx">200</span> OK, <code>content: []</code>, <code>totalElements: 0</code>']},
+      {id:'F-06', title:'Page size is respected', pre:'Seeded data set (see F-01)',
+        steps:['GET <span class="path">?page=0&amp;size=2</span>'],
+        exp:['<span class="chip s-2xx">200</span> OK, exactly 2 items returned']},
+      {id:'F-07', title:'The second page differs from the first', pre:'Seeded data set (see F-01)',
+        steps:['GET page 0 and page 1 (size = 2) and compare the ids'],
+        exp:['no id appears on both pages']},
+      {id:'F-08', title:'A page beyond the last page returns no error', pre:'Seeded data set (see F-01)',
+        steps:['GET <span class="path">?page=999&amp;size=10</span>'],
+        exp:['<span class="chip s-2xx">200</span> OK, <code>content: []</code>']},
+      {id:'F-09', title:'An oversized page size is capped, not rejected', pre:'Seeded data set (see F-01)',
+        steps:['GET <span class="path">?size=10000</span>'],
+        exp:['<span class="chip s-2xx">200</span> OK, returned <code>size</code> ≤ 100']},
+      {id:'F-10', title:'An invalid page size falls back to the default', pre:'Seeded data set (see F-01)',
+        steps:['GET <span class="path">?size=0</span>'],
+        exp:['<span class="chip s-2xx">200</span> OK, returned <code>size</code> &gt; 0']},
+      {id:'F-11', title:'Results are ordered consistently across requests', pre:'Seeded data set (see F-01)',
+        steps:['Call the same filtered endpoint twice and compare id order'],
+        exp:['identical order both times, ascending by <code>id</code>']},
+    ]
+  },
+  {
+    key:'err', name:'Error Handling', file:'error-handling.spec.ts',
+    color:'var(--err)', soft:'var(--err-soft)',
+    desc:'Not a re-test of every endpoint &mdash; confirms the error <em>shape</em> itself (<code>timestamp</code>, <code>status</code>, <code>error</code>, <code>message</code>, <code>path</code>) stays identical across every kind of failure.',
+    tests:[
+      {id:'E-01', title:'404 responses follow the standard shape', pre:null,
+        steps:['GET a non-existent category id'],
+        exp:['body has all 5 standard fields', '<code>status</code> = <span class="chip s-404">404</span>, <code>path</code> matches the request URI']},
+      {id:'E-02', title:'409 responses follow the standard shape', pre:'A category with one task exists',
+        steps:['DELETE that category'],
+        exp:['body has all 5 standard fields', '<code>status</code> = <span class="chip s-409">409</span>']},
+      {id:'E-03', title:'400 validation responses include a details array', pre:null,
+        steps:['POST a task with <code>title: ""</code>'],
+        exp:['body has all 5 standard fields', '<code>details</code> is a non-empty array naming the invalid field']},
+      {id:'E-04', title:'An invalid enum value in the body is rejected cleanly', pre:'A category exists',
+        steps:['POST a task with <code>status: "NOT_A_REAL_STATUS"</code>'],
+        exp:['<span class="chip s-400">400</span> Bad Request &mdash; never a raw <span class="chip s-409" style="background:var(--miss-soft);color:var(--miss)">500</span>']},
+      {id:'E-05', title:'An invalid enum value in a query parameter is rejected cleanly', pre:null,
+        steps:['GET <span class="path">/api/tasks?status=NOT_A_REAL_STATUS</span>'],
+        exp:['<span class="chip s-400">400</span> Bad Request, standard error shape']},
+      {id:'E-06', title:'A malformed JSON body is rejected cleanly', pre:null,
+        steps:['POST <span class="path">/api/categories</span> with a broken JSON body']  ,
+        exp:['<span class="chip s-400">400</span> Bad Request']},
+    ]
+  },
+];
+
+function renderStats(){
+  const total = SUITES.reduce((n,s)=>n+s.tests.length,0);
+  const items = [
+    {n: total, l:'Total test cases', c:'var(--accent)'},
+    ...SUITES.map(s=>({n:s.tests.length, l:s.name, c:s.color})),
+  ];
+  document.getElementById('stats').innerHTML = items.map(i=>
+    `<div class="stat" style="--stat-c:${i.c}"><div class="n">${i.n}</div><div class="l">${i.l}</div></div>`
+  ).join('');
+}
+
+function renderSuites(){
+  document.getElementById('suites').innerHTML = SUITES.map(s=>`
+    <section class="suite" style="--sc:${s.color};--sc-soft:${s.soft}">
+      <div class="suite-head">
+        <h2>${s.name}</h2>
+        <span class="count">${s.tests.length} cases</span>
+        <span class="file">${s.file}</span>
+      </div>
+      <p class="suite-desc">${s.desc}</p>
+      ${s.tests.map(t=>`
+        <article class="tcard">
+          <div class="tcard-top">
+            <span class="tid">${t.id}</span>
+            <span class="ttitle">${t.title}</span>
+          </div>
+          <div class="tgrid">
+            <div class="k">Pre-Conditions</div>
+            <div class="v">${t.pre ? t.pre : '<span class="pre-none">None</span>'}</div>
+            <div class="k">Test Steps</div>
+            <div class="v"><ol>${t.steps.map(x=>`<li>${x}</li>`).join('')}</ol></div>
+            <div class="k">Expected Result</div>
+            <div class="v"><ol>${t.exp.map(x=>`<li>${x}</li>`).join('')}</ol></div>
+          </div>
+        </article>
+      `).join('')}
+    </section>
+  `).join('');
+}
+
+renderStats();
+renderSuites();
+</script>
+
+</body></html>

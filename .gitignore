@@ -1,0 +1,19 @@
+# Maven (todo-api)
+todo-api/target/
+
+# Node / Playwright (todo-api-tests)
+todo-api-tests/node_modules/
+todo-api-tests/playwright-report/
+todo-api-tests/test-results/
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+*.log
+HELP.md
+
+# Local DB credential notes - must never be committed
+Db connection.txt
+Db connection - Copy.txt
