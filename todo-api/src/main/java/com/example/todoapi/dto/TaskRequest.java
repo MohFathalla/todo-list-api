@@ -30,5 +30,8 @@ public class TaskRequest {
 
     @NotNull(message = "categoryId is required")
     private Long categoryId;
+
+    private Long expectedVersion;
+
 }
 

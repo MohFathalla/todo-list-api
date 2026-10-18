@@ -20,5 +20,7 @@ public class TaskResponse {
     private LocalDate dueDate;
     private Long categoryId;
     private String categoryName;
+    private Long version;
+
 }
 

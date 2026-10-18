@@ -1,0 +1,1349 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>CR Implementation Guide</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* ============================================================
+   Design plan
+   Color: slate neutrals + a single teal-ish accent (dev-tool feel,
+          not the usual purple/blue gradient or neon-on-black)
+   Type: Inter for UI text, JetBrains Mono for code and file paths
+   Layout: sticky top tab bar (Overview + 5 CRs) switching full-width
+           panels; each CR is a vertical stack of numbered step
+           cards, each step a short explanation + a labeled,
+           copy-button code block
+   ============================================================ */
+:root{
+  --bg:#f3f5f7;
+  --surface:#ffffff;
+  --surface-2:#eceff3;
+  --border:#dde2e8;
+  --fg:#1a2129;
+  --muted:#5c6673;
+  --accent:#0d7d6c;
+  --accent-fg:#ffffff;
+  --code-bg:#1b2229;
+  --code-fg:#dce4ea;
+  --code-border:#2a333c;
+  --success:#1a7f4f;
+  --warn-bg:#fdf3e3;
+  --warn-fg:#7a4a00;
+  --warn-border:#eed9ad;
+  --chip-bg:#e7ebf0;
+  --font-ui:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --font-mono:'JetBrains Mono','Courier New',monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1317;
+    --surface:#161b20;
+    --surface-2:#1c2228;
+    --border:#2a323a;
+    --fg:#e6ebef;
+    --muted:#95a1ad;
+    --accent:#2bb8a0;
+    --accent-fg:#06211c;
+    --code-bg:#0c0f12;
+    --code-fg:#dce4ea;
+    --code-border:#272f36;
+    --success:#49cf93;
+    --warn-bg:#2a2210;
+    --warn-fg:#e7bf6f;
+    --warn-border:#4a3a12;
+    --chip-bg:#232a31;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1317;
+  --surface:#161b20;
+  --surface-2:#1c2228;
+  --border:#2a323a;
+  --fg:#e6ebef;
+  --muted:#95a1ad;
+  --accent:#2bb8a0;
+  --accent-fg:#06211c;
+  --code-bg:#0c0f12;
+  --code-fg:#dce4ea;
+  --code-border:#272f36;
+  --success:#49cf93;
+  --warn-bg:#2a2210;
+  --warn-fg:#e7bf6f;
+  --warn-border:#4a3a12;
+  --chip-bg:#232a31;
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--bg);
+  color:var(--fg);
+  font-family:var(--font-ui);
+  line-height:1.55;
+  padding-left:max(16px, env(safe-area-inset-left,0px));
+  padding-right:max(16px, env(safe-area-inset-right,0px));
+}
+h1,h2,h3{text-wrap:balance; font-weight:700}
+code,.mono{font-family:var(--font-mono)}
+
+/* top bar */
+.topbar{
+  position:sticky; top:env(safe-area-inset-top,0px);
+  background:var(--bg); z-index:20;
+  padding-top:18px; padding-bottom:10px;
+  border-bottom:1px solid var(--border);
+  margin:0 -16px; padding-left:16px; padding-right:16px;
+}
+.topbar h1{font-size:1.25rem; margin:0 0 10px 0; letter-spacing:-0.01em}
+.tabs{display:flex; flex-wrap:wrap; gap:6px}
+.tab{
+  font:600 0.82rem var(--font-ui);
+  padding:7px 13px; border-radius:7px;
+  border:1px solid var(--border);
+  background:var(--surface);
+  color:var(--muted);
+  cursor:pointer;
+}
+.tab:hover{color:var(--fg); border-color:var(--accent)}
+.tab[aria-selected="true"]{
+  background:var(--accent); color:var(--accent-fg); border-color:var(--accent);
+}
+
+main{max-width:860px; margin:0 auto; padding:26px 0 70px 0}
+.panel{display:none}
+.panel.active{display:block}
+
+/* overview panel */
+.lede{font-size:1.02rem; color:var(--muted); max-width:62ch}
+.note{
+  background:var(--warn-bg); color:var(--warn-fg);
+  border:1px solid var(--warn-border); border-radius:10px;
+  padding:14px 16px; margin:20px 0; font-size:0.92rem;
+}
+.note strong{color:inherit}
+.cr-index{list-style:none; margin:22px 0 0 0; padding:0; display:grid; gap:10px}
+.cr-index li{
+  background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:14px 16px; display:flex; justify-content:space-between; align-items:center; gap:12px;
+}
+.cr-index button{
+  font:600 0.85rem var(--font-ui); color:var(--accent); background:none; border:none; cursor:pointer;
+  padding:0;
+}
+.cr-index .name{font-weight:600}
+.cr-index .count{color:var(--muted); font-size:0.85rem}
+
+/* CR panel header */
+.cr-head{margin-bottom:22px}
+.cr-eyebrow{font:600 0.76rem var(--font-mono); color:var(--accent); letter-spacing:0.04em; text-transform:uppercase}
+.cr-head h2{font-size:1.45rem; margin:4px 0 8px 0}
+.cr-objective{color:var(--muted); max-width:66ch; font-size:0.97rem}
+
+/* step cards */
+.step{
+  background:var(--surface); border:1px solid var(--border); border-radius:12px;
+  padding:18px 20px; margin-bottom:16px;
+}
+.step-head{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:6px}
+.step-num{
+  font:700 0.78rem var(--font-mono); color:var(--accent-fg); background:var(--accent);
+  width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center;
+  flex:0 0 auto;
+}
+.step-title{font-weight:700; font-size:1.02rem}
+.step-desc{color:var(--muted); font-size:0.92rem; margin:6px 0 12px 0; max-width:68ch}
+.filechip{
+  display:inline-block; font:500 0.78rem var(--font-mono); color:var(--fg);
+  background:var(--chip-bg); border:1px solid var(--border); border-radius:6px;
+  padding:3px 9px; margin-bottom:10px;
+}
+.filechip.new::before{content:"new  "; color:var(--success); font-weight:700}
+
+.codewrap{
+  position:relative; border:1px solid var(--code-border); border-radius:9px;
+  overflow:hidden; background:var(--code-bg);
+}
+.codewrap .bar{
+  display:flex; justify-content:flex-end; padding:7px 9px;
+  border-bottom:1px solid var(--code-border);
+}
+.copybtn{
+  font:600 0.76rem var(--font-ui); color:var(--code-fg); background:var(--surface-2);
+  border:1px solid var(--code-border); border-radius:6px; padding:4px 10px; cursor:pointer;
+}
+.copybtn:hover{border-color:var(--accent)}
+.copybtn.copied{color:var(--success); border-color:var(--success)}
+pre{
+  margin:0; padding:14px 16px; overflow-x:auto;
+  font-family:var(--font-mono); font-size:0.82rem; line-height:1.55; color:var(--code-fg);
+  min-width:0;
+}
+pre code{font-family:inherit; white-space:pre}
+
+footer{color:var(--muted); font-size:0.82rem; text-align:center; padding:10px 0 30px 0}
+
+@media (max-width:480px){
+  .topbar h1{font-size:1.1rem}
+  .step{padding:14px 14px}
+  pre{font-size:0.76rem}
+}
+</style>
+
+<div class="topbar">
+  <h1>CR Implementation Guide — To-Do List API</h1>
+  <div class="tabs" id="tabs" role="tablist"></div>
+</div>
+
+<main id="main"></main>
+
+<footer>Reference material for the 5 proposed Change Requests. Nothing here has been applied to the project automatically.</footer>
+
+<script>
+/* ---------- content data ---------- */
+const CRS = [
+  {
+    id:'cr1', code:'CR-001', title:'Optimistic Locking',
+    objective:'Add a version number to Task so a stale update (based on data the client already knows is outdated) is rejected with 409 instead of silently overwriting someone else\'s change.',
+    steps:[
+      {
+        title:'Add a version field to the Task entity',
+        desc:'This is the field Hibernate uses to detect a stale update. Add it next to the other @Column fields.',
+        file:'entity/Task.java', isNew:false, lang:'java',
+        code:
+`@Version
+@Column(name = "VERSION", nullable = false)
+private Long version;`
+      },
+      {
+        title:'Return the version in task responses',
+        desc:'Clients need to see the current version so they can send it back on their next update.',
+        file:'dto/TaskResponse.java', isNew:false, lang:'java',
+        code:
+`private Long version;`
+      },
+      {
+        title:'Accept the client\'s expected version on update',
+        desc:'Add this field to TaskRequest. It is only used by PUT — leave it out of a create request and it will just be null.',
+        file:'dto/TaskRequest.java', isNew:false, lang:'java',
+        code:
+`private Long expectedVersion;`
+      },
+      {
+        title:'Apply the expected version before saving',
+        desc:'In your update() method, set the loaded entity\'s version to what the client sent before calling save(). This is what makes Hibernate\'s UPDATE ... WHERE VERSION = ? check mean something — merge the version line into your existing update() logic, keep the rest as it already is.',
+        file:'service/impl/TaskServiceImpl.java', isNew:false, lang:'java',
+        code:
+`@Override
+@Transactional
+public TaskResponse update(Long id, TaskRequest request) {
+    Task task = taskRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Task not found with id: " + id));
+
+    Category category = categoryRepository.findById(request.getCategoryId())
+            .orElseThrow(() -> new ResourceNotFoundException(
+                    "Category not found with id: " + request.getCategoryId()));
+
+    task.setTitle(request.getTitle());
+    task.setDescription(request.getDescription());
+    task.setStatus(request.getStatus() != null ? request.getStatus() : TaskStatus.TODO);
+    task.setDueDate(request.getDueDate());
+    task.setCategory(category);
+
+    // CR-001: enforce optimistic locking using the version the client last saw
+    task.setVersion(request.getExpectedVersion());
+
+    Task saved = taskRepository.save(task);
+    return toResponse(saved);
+}`
+      },
+      {
+        title:'Include version wherever you build a TaskResponse',
+        desc:'Add this line to the builder call inside your toResponse(Task task) mapping method.',
+        file:'service/impl/TaskServiceImpl.java', isNew:false, lang:'java',
+        code:
+`.version(task.getVersion())`
+      },
+      {
+        title:'Turn a version mismatch into a 409',
+        desc:'Add this handler next to the other @ExceptionHandler methods, and add the import above it.',
+        file:'exception/GlobalExceptionHandler.java', isNew:false, lang:'java',
+        code:
+`import org.springframework.orm.ObjectOptimisticLockingFailureException;
+
+@ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+public ResponseEntity<ErrorResponse> handleOptimisticLock(
+        ObjectOptimisticLockingFailureException ex, HttpServletRequest req) {
+    return build(HttpStatus.CONFLICT, "Conflict",
+            "This task was modified by another request. Reload it and try again.", null, req);
+}`
+      },
+      {
+        title:'Backfill the column for existing rows',
+        desc:'ddl-auto: update is not guaranteed to safely fill a NOT NULL column for rows that already exist. Run this once against Oracle before relying on the new field, then start the app as usual.',
+        file:'run once in SQL*Plus / SQL Developer', isNew:false, lang:'sql',
+        code:
+`ALTER TABLE TASK ADD VERSION NUMBER(19,0) DEFAULT 0 NOT NULL;`
+      }
+    ]
+  },
+  {
+    id:'cr2', code:'CR-002', title:'API Idempotency',
+    objective:'Let a client retry a POST /api/tasks call safely after a lost response, using an Idempotency-Key header, without ever creating a duplicate task.',
+    steps:[
+      {
+        title:'Create the idempotency record entity',
+        desc:'Stores one row per key: what was requested (as a fingerprint) and what was returned.',
+        file:'entity/IdempotencyRecord.java', isNew:true, lang:'java',
+        code:
+`package com.example.todoapi.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.Instant;
+
+@Entity
+@Table(name = "IDEMPOTENCY_RECORD")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class IdempotencyRecord {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "ID")
+    private Long id;
+
+    @Column(name = "IDEMPOTENCY_KEY", nullable = false, unique = true, length = 200)
+    private String idempotencyKey;
+
+    @Column(name = "REQUEST_FINGERPRINT", nullable = false, length = 64)
+    private String requestFingerprint;
+
+    @Lob
+    @Column(name = "RESPONSE_BODY", nullable = false)
+    private String responseBody;
+
+    @Column(name = "RESPONSE_STATUS", nullable = false)
+    private int responseStatus;
+
+    @Column(name = "CREATED_AT", nullable = false)
+    private Instant createdAt;
+}`
+      },
+      {
+        title:'Create its repository',
+        file:'repository/IdempotencyRecordRepository.java', isNew:true, lang:'java',
+        code:
+`package com.example.todoapi.repository;
+
+import com.example.todoapi.entity.IdempotencyRecord;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.Optional;
+
+public interface IdempotencyRecordRepository extends JpaRepository<IdempotencyRecord, Long> {
+    Optional<IdempotencyRecord> findByIdempotencyKey(String idempotencyKey);
+}`
+      },
+      {
+        title:'Create the conflict exception',
+        desc:'Thrown when a key is reused with a different request body.',
+        file:'exception/IdempotencyKeyConflictException.java', isNew:true, lang:'java',
+        code:
+`package com.example.todoapi.exception;
+
+public class IdempotencyKeyConflictException extends RuntimeException {
+    public IdempotencyKeyConflictException(String message) {
+        super(message);
+    }
+}`
+      },
+      {
+        title:'Map it to 409',
+        file:'exception/GlobalExceptionHandler.java', isNew:false, lang:'java',
+        code:
+`@ExceptionHandler(IdempotencyKeyConflictException.class)
+public ResponseEntity<ErrorResponse> handleIdempotencyConflict(
+        IdempotencyKeyConflictException ex, HttpServletRequest req) {
+    return build(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), null, req);
+}`
+      },
+      {
+        title:'Read the header on the controller',
+        desc:'The header is optional — omitting it keeps today\'s behavior exactly as-is.',
+        file:'controller/TaskController.java', isNew:false, lang:'java',
+        code:
+`@PostMapping
+@Operation(summary = "Create a new task")
+public ResponseEntity<TaskResponse> create(
+        @Valid @RequestBody TaskRequest request,
+        @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+    return ResponseEntity.status(HttpStatus.CREATED).body(taskService.create(request, idempotencyKey));
+}`
+      },
+      {
+        title:'Update the service interface',
+        file:'service/TaskService.java', isNew:false, lang:'java',
+        code:
+`TaskResponse create(TaskRequest request, String idempotencyKey);`
+      },
+      {
+        title:'Wrap task creation with the idempotency check',
+        desc:'New key -> create normally and record it. Known key + same body -> replay the stored response. Known key + different body -> 409. The catch block handles two concurrent requests racing to insert the same new key.',
+        file:'service/impl/TaskServiceImpl.java', isNew:false, lang:'java',
+        code:
+`@Override
+@Transactional
+public TaskResponse create(TaskRequest request, String idempotencyKey) {
+    if (idempotencyKey == null || idempotencyKey.isBlank()) {
+        return createTask(request);
+    }
+
+    String fingerprint = fingerprint(request);
+
+    Optional<IdempotencyRecord> existing = idempotencyRecordRepository.findByIdempotencyKey(idempotencyKey);
+    if (existing.isPresent()) {
+        IdempotencyRecord record = existing.get();
+        if (!record.getRequestFingerprint().equals(fingerprint)) {
+            throw new IdempotencyKeyConflictException(
+                    "Idempotency-Key '" + idempotencyKey + "' was already used with a different request body");
+        }
+        return readJson(record.getResponseBody(), TaskResponse.class);
+    }
+
+    try {
+        TaskResponse response = createTask(request);
+
+        IdempotencyRecord record = IdempotencyRecord.builder()
+                .idempotencyKey(idempotencyKey)
+                .requestFingerprint(fingerprint)
+                .responseBody(writeJson(response))
+                .responseStatus(201)
+                .createdAt(Instant.now())
+                .build();
+        idempotencyRecordRepository.save(record);
+
+        return response;
+
+    } catch (DataIntegrityViolationException raceLoss) {
+        // another concurrent request with the same key won the insert first
+        IdempotencyRecord winner = idempotencyRecordRepository.findByIdempotencyKey(idempotencyKey)
+                .orElseThrow(() -> raceLoss);
+        if (!winner.getRequestFingerprint().equals(fingerprint)) {
+            throw new IdempotencyKeyConflictException(
+                    "Idempotency-Key '" + idempotencyKey + "' was already used with a different request body");
+        }
+        return readJson(winner.getResponseBody(), TaskResponse.class);
+    }
+}`
+      },
+      {
+        title:'Add the plain creation path and helper methods',
+        desc:'createTask() is your existing creation logic, pulled into its own method so both the idempotent and non-idempotent paths can call it. The three helpers do the JSON fingerprinting and storage.',
+        file:'service/impl/TaskServiceImpl.java', isNew:false, lang:'java',
+        code:
+`private TaskResponse createTask(TaskRequest request) {
+    Category category = categoryRepository.findById(request.getCategoryId())
+            .orElseThrow(() -> new ResourceNotFoundException(
+                    "Category not found with id: " + request.getCategoryId()));
+
+    Task task = Task.builder()
+            .title(request.getTitle())
+            .description(request.getDescription())
+            .status(request.getStatus() != null ? request.getStatus() : TaskStatus.TODO)
+            .dueDate(request.getDueDate())
+            .category(category)
+            .build();
+
+    return toResponse(taskRepository.save(task));
+}
+
+private String fingerprint(TaskRequest request) {
+    try {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] hash = digest.digest(writeJson(request).getBytes(StandardCharsets.UTF_8));
+        StringBuilder hex = new StringBuilder();
+        for (byte b : hash) hex.append(String.format("%02x", b));
+        return hex.toString();
+    } catch (Exception e) {
+        throw new IllegalStateException("Unable to compute request fingerprint", e);
+    }
+}
+
+private String writeJson(Object value) {
+    try {
+        return objectMapper.writeValueAsString(value);
+    } catch (Exception e) {
+        throw new IllegalStateException("Unable to serialize for idempotency storage", e);
+    }
+}
+
+private <T> T readJson(String json, Class<T> type) {
+    try {
+        return objectMapper.readValue(json, type);
+    } catch (Exception e) {
+        throw new IllegalStateException("Unable to deserialize stored idempotent response", e);
+    }
+}`
+      },
+      {
+        title:'Wire up the new dependencies',
+        desc:'Add these two fields next to your existing repository fields. Since the class uses @RequiredArgsConstructor, Lombok wires them in automatically.',
+        file:'service/impl/TaskServiceImpl.java', isNew:false, lang:'java',
+        code:
+`private final IdempotencyRecordRepository idempotencyRecordRepository;
+private final ObjectMapper objectMapper;
+
+// imports to add at the top of the file:
+// com.fasterxml.jackson.databind.ObjectMapper
+// com.example.todoapi.entity.IdempotencyRecord
+// com.example.todoapi.repository.IdempotencyRecordRepository
+// com.example.todoapi.exception.IdempotencyKeyConflictException
+// org.springframework.dao.DataIntegrityViolationException
+// java.security.MessageDigest
+// java.nio.charset.StandardCharsets
+// java.time.Instant
+// java.util.Optional`
+      },
+      {
+        title:'Add a retention setting',
+        desc:'Used by the cleanup job described in the CR\'s technical design — not required for the feature to work, but add it now so it\'s there when you build cleanup.',
+        file:'application.yml', isNew:false, lang:'yaml',
+        code:
+`app:
+  idempotency:
+    retention-hours: 24`
+      }
+    ]
+  },
+  {
+    id:'cr3', code:'CR-003', title:'Scheduled Overdue Tasks',
+    objective:'Run a background job on a configurable schedule that finds tasks whose due date has passed and whose status is not DONE, and logs them.',
+    steps:[
+      {
+        title:'Turn on Spring\'s scheduler',
+        file:'TodoApiApplication.java', isNew:false, lang:'java',
+        code:
+`package com.example.todoapi;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
+
+@SpringBootApplication
+@EnableScheduling
+public class TodoApiApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(TodoApiApplication.class, args);
+    }
+}`
+      },
+      {
+        title:'Add the overdue-tasks query',
+        desc:'Passing "today" in as a parameter (rather than a database function) keeps this easy to unit test with any date you like.',
+        file:'repository/TaskRepository.java', isNew:false, lang:'java',
+        code:
+`import org.springframework.data.repository.query.Param;
+import java.time.LocalDate;
+
+@Query("SELECT t FROM Task t WHERE t.dueDate < :today AND t.status <> com.example.todoapi.enums.TaskStatus.DONE")
+List<Task> findOverdueTasks(@Param("today") LocalDate today);`
+      },
+      {
+        title:'Create the detection service interface',
+        desc:'Kept separate from the scheduler itself so the logic is directly testable without waiting for a cron trigger.',
+        file:'service/OverdueTaskService.java', isNew:true, lang:'java',
+        code:
+`package com.example.todoapi.service;
+
+import com.example.todoapi.entity.Task;
+
+import java.time.LocalDate;
+import java.util.List;
+
+public interface OverdueTaskService {
+    List<Task> detectOverdueTasks(LocalDate today);
+}`
+      },
+      {
+        title:'Implement the detection logic',
+        file:'service/impl/OverdueTaskServiceImpl.java', isNew:true, lang:'java',
+        code:
+`package com.example.todoapi.service.impl;
+
+import com.example.todoapi.entity.Task;
+import com.example.todoapi.repository.TaskRepository;
+import com.example.todoapi.service.OverdueTaskService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.util.List;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class OverdueTaskServiceImpl implements OverdueTaskService {
+
+    private final TaskRepository taskRepository;
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Task> detectOverdueTasks(LocalDate today) {
+        List<Task> overdue = taskRepository.findOverdueTasks(today);
+
+        if (overdue.isEmpty()) {
+            log.info("Overdue task check: 0 overdue tasks found");
+        } else {
+            overdue.forEach(t -> log.info("Overdue task detected: id={}, title='{}', dueDate={}",
+                    t.getId(), t.getTitle(), t.getDueDate()));
+            log.info("Overdue task check: {} overdue task(s) found", overdue.size());
+        }
+
+        return overdue;
+    }
+}`
+      },
+      {
+        title:'Create the scheduled trigger',
+        desc:'This is the only class aware of the cron schedule — it just calls the service above and never lets an exception stop future runs.',
+        file:'scheduler/OverdueTaskScheduler.java', isNew:true, lang:'java',
+        code:
+`package com.example.todoapi.scheduler;
+
+import com.example.todoapi.service.OverdueTaskService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+
+import java.time.LocalDate;
+
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class OverdueTaskScheduler {
+
+    private final OverdueTaskService overdueTaskService;
+
+    @Scheduled(cron = "\${app.scheduler.overdue-cron}")
+    public void run() {
+        try {
+            overdueTaskService.detectOverdueTasks(LocalDate.now());
+        } catch (Exception e) {
+            log.error("Overdue task check failed", e);
+        }
+    }
+}`
+      },
+      {
+        title:'Configure the schedule',
+        desc:'This example runs every day at 06:00 server time. Change the cron expression to whatever interval you want — no code change needed afterward.',
+        file:'application.yml', isNew:false, lang:'yaml',
+        code:
+`app:
+  scheduler:
+    overdue-cron: "0 0 6 * * *"   # every day at 06:00 server time`
+      }
+    ]
+  },
+  {
+    id:'cr4', code:'CR-004', title:'Audit Trail',
+    objective:'Record a durable, chronological history of every task create, update, and delete — old values, new values, when, and by whom — and expose it through a read-only endpoint.',
+    steps:[
+      {
+        title:'Create the operation type',
+        file:'enums/AuditOperation.java', isNew:true, lang:'java',
+        code:
+`package com.example.todoapi.enums;
+
+public enum AuditOperation {
+    CREATE,
+    UPDATE,
+    DELETE
+}`
+      },
+      {
+        title:'Create the audit entity',
+        desc:'taskId is a plain column, not a relationship — so an entry survives even after its task is deleted.',
+        file:'entity/TaskAudit.java', isNew:true, lang:'java',
+        code:
+`package com.example.todoapi.entity;
+
+import com.example.todoapi.enums.AuditOperation;
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.Instant;
+
+@Entity
+@Table(name = "TASK_AUDIT")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TaskAudit {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "ID")
+    private Long id;
+
+    @Column(name = "TASK_ID", nullable = false)
+    private Long taskId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "OPERATION", nullable = false, length = 20)
+    private AuditOperation operation;
+
+    @Lob
+    @Column(name = "OLD_VALUES")
+    private String oldValues;
+
+    @Lob
+    @Column(name = "NEW_VALUES")
+    private String newValues;
+
+    @Column(name = "ACTOR", nullable = false, length = 100)
+    private String actor;
+
+    @Column(name = "OCCURRED_AT", nullable = false)
+    private Instant occurredAt;
+}`
+      },
+      {
+        title:'Create its repository',
+        file:'repository/TaskAuditRepository.java', isNew:true, lang:'java',
+        code:
+`package com.example.todoapi.repository;
+
+import com.example.todoapi.entity.TaskAudit;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface TaskAuditRepository extends JpaRepository<TaskAudit, Long> {
+    List<TaskAudit> findByTaskIdOrderByOccurredAtAsc(Long taskId);
+}`
+      },
+      {
+        title:'Create the response DTO',
+        file:'dto/TaskAuditResponse.java', isNew:true, lang:'java',
+        code:
+`package com.example.todoapi.dto;
+
+import com.example.todoapi.enums.AuditOperation;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.Instant;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TaskAuditResponse {
+    private AuditOperation operation;
+    private String oldValues;
+    private String newValues;
+    private String actor;
+    private Instant occurredAt;
+}`
+      },
+      {
+        title:'Create the audit service',
+        file:'service/AuditService.java', isNew:true, lang:'java',
+        code:
+`package com.example.todoapi.service;
+
+import com.example.todoapi.enums.AuditOperation;
+
+public interface AuditService {
+    void record(Long taskId, AuditOperation operation, Object oldValues, Object newValues);
+}`
+      },
+      {
+        title:'Implement it',
+        desc:'Since there\'s no login system yet, every entry uses one configured "system actor" name rather than a real user.',
+        file:'service/impl/AuditServiceImpl.java', isNew:true, lang:'java',
+        code:
+`package com.example.todoapi.service.impl;
+
+import com.example.todoapi.entity.TaskAudit;
+import com.example.todoapi.enums.AuditOperation;
+import com.example.todoapi.repository.TaskAuditRepository;
+import com.example.todoapi.service.AuditService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import java.time.Instant;
+
+@Service
+@RequiredArgsConstructor
+public class AuditServiceImpl implements AuditService {
+
+    private final TaskAuditRepository taskAuditRepository;
+    private final ObjectMapper objectMapper;
+
+    @Value("\${app.audit.system-actor}")
+    private String systemActor;
+
+    @Override
+    public void record(Long taskId, AuditOperation operation, Object oldValues, Object newValues) {
+        TaskAudit audit = TaskAudit.builder()
+                .taskId(taskId)
+                .operation(operation)
+                .oldValues(toJsonOrNull(oldValues))
+                .newValues(toJsonOrNull(newValues))
+                .actor(systemActor)
+                .occurredAt(Instant.now())
+                .build();
+        taskAuditRepository.save(audit);
+    }
+
+    private String toJsonOrNull(Object value) {
+        if (value == null) return null;
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception e) {
+            throw new IllegalStateException("Unable to serialize audit payload", e);
+        }
+    }
+}`
+      },
+      {
+        title:'Hook it into create()',
+        desc:'Add this line right after you save the new task, using the same auditService field (inject it via the existing @RequiredArgsConstructor, same pattern as any other repository field).',
+        file:'service/impl/TaskServiceImpl.java', isNew:false, lang:'java',
+        code:
+`Task saved = taskRepository.save(task);
+TaskResponse response = toResponse(saved);
+auditService.record(saved.getId(), AuditOperation.CREATE, null, response);
+return response;`
+      },
+      {
+        title:'Hook it into update()',
+        desc:'Snapshot the task\'s state before you apply the incoming changes, so the audit entry has a true "before" value.',
+        file:'service/impl/TaskServiceImpl.java', isNew:false, lang:'java',
+        code:
+`TaskResponse before = toResponse(task); // snapshot BEFORE applying the incoming changes
+
+// ... your existing field-by-field update logic goes here ...
+
+Task saved = taskRepository.save(task);
+TaskResponse after = toResponse(saved);
+auditService.record(id, AuditOperation.UPDATE, before, after);
+return after;`
+      },
+      {
+        title:'Hook it into delete()',
+        file:'service/impl/TaskServiceImpl.java', isNew:false, lang:'java',
+        code:
+`@Override
+@Transactional
+public void delete(Long id) {
+    Task task = taskRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Task not found with id: " + id));
+    TaskResponse snapshot = toResponse(task);
+    taskRepository.delete(task);
+    auditService.record(id, AuditOperation.DELETE, snapshot, null);
+}`
+      },
+      {
+        title:'Add the read-only history endpoint',
+        file:'controller/TaskController.java', isNew:false, lang:'java',
+        code:
+`@GetMapping("/{id}/audit")
+@Operation(summary = "Get a task's audit history")
+public ResponseEntity<List<TaskAuditResponse>> getAuditHistory(@PathVariable Long id) {
+    return ResponseEntity.ok(taskService.getAuditHistory(id));
+}`
+      },
+      {
+        title:'Add the service method behind it',
+        desc:'Returns 404 only if the task id never existed at all — a deleted task that once had history still returns 200 with its records.',
+        file:'service/TaskService.java + service/impl/TaskServiceImpl.java', isNew:false, lang:'java',
+        code:
+`// TaskService.java — add to the interface:
+List<TaskAuditResponse> getAuditHistory(Long id);
+
+// TaskServiceImpl.java — implement it:
+@Override
+@Transactional(readOnly = true)
+public List<TaskAuditResponse> getAuditHistory(Long id) {
+    List<TaskAudit> history = taskAuditRepository.findByTaskIdOrderByOccurredAtAsc(id);
+    if (history.isEmpty() && !taskRepository.existsById(id)) {
+        throw new ResourceNotFoundException("Task not found with id: " + id);
+    }
+    return history.stream().map(this::toAuditResponse).toList();
+}
+
+private TaskAuditResponse toAuditResponse(TaskAudit audit) {
+    return TaskAuditResponse.builder()
+            .operation(audit.getOperation())
+            .oldValues(audit.getOldValues())
+            .newValues(audit.getNewValues())
+            .actor(audit.getActor())
+            .occurredAt(audit.getOccurredAt())
+            .build();
+}
+
+// also add this field next to your other repository fields:
+private final TaskAuditRepository taskAuditRepository;
+private final AuditService auditService;`
+      },
+      {
+        title:'Set the system actor name',
+        file:'application.yml', isNew:false, lang:'yaml',
+        code:
+`app:
+  audit:
+    system-actor: "system"`
+      }
+    ]
+  },
+  {
+    id:'cr5', code:'CR-005', title:'AI-Assisted Task Breakdown',
+    objective:'Add a separate endpoint that asks an external AI model whether a task should be split up, and if so, what the smaller tasks should look like. It only returns suggestions — it never saves anything itself.',
+    steps:[
+      {
+        title:'Create the request DTO',
+        file:'dto/AiBreakdownRequest.java', isNew:true, lang:'java',
+        code:
+`package com.example.todoapi.dto;
+
+import jakarta.validation.constraints.FutureOrPresent;
+import jakarta.validation.constraints.NotBlank;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDate;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class AiBreakdownRequest {
+
+    @NotBlank(message = "Task title is required")
+    private String title;
+
+    private String description;
+
+    @FutureOrPresent(message = "Due date cannot be in the past")
+    private LocalDate dueDate;
+}`
+      },
+      {
+        title:'Create the suggested-task shape',
+        file:'dto/SuggestedTask.java', isNew:true, lang:'java',
+        code:
+`package com.example.todoapi.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDate;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class SuggestedTask {
+    private String title;
+    private String description;
+    private LocalDate dueDate;
+}`
+      },
+      {
+        title:'Create the response DTO',
+        file:'dto/AiBreakdownResponse.java', isNew:true, lang:'java',
+        code:
+`package com.example.todoapi.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.List;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class AiBreakdownResponse {
+    private boolean shouldBreakDown;
+    private String reason;
+    private List<SuggestedTask> suggestedTasks;
+}`
+      },
+      {
+        title:'Create the provider-failure exception',
+        file:'exception/AiProviderException.java', isNew:true, lang:'java',
+        code:
+`package com.example.todoapi.exception;
+
+public class AiProviderException extends RuntimeException {
+    public AiProviderException(String message, Throwable cause) {
+        super(message, cause);
+    }
+}`
+      },
+      {
+        title:'Map it to 502',
+        desc:'This never touches task creation — POST /api/tasks keeps working even if the AI provider is down.',
+        file:'exception/GlobalExceptionHandler.java', isNew:false, lang:'java',
+        code:
+`@ExceptionHandler(AiProviderException.class)
+public ResponseEntity<ErrorResponse> handleAiProviderFailure(
+        AiProviderException ex, HttpServletRequest req) {
+    return build(HttpStatus.BAD_GATEWAY, "AI Provider Unavailable",
+            "The AI breakdown service is temporarily unavailable. Try again later, or create the task directly.",
+            null, req);
+}`
+      },
+      {
+        title:'Register the HTTP client for the AI provider',
+        desc:'Spring Boot 3.3\'s built-in RestClient is enough here — no extra dependency needed.',
+        file:'config/AiProviderConfig.java', isNew:true, lang:'java',
+        code:
+`package com.example.todoapi.config;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestClient;
+
+@Configuration
+public class AiProviderConfig {
+
+    @Bean
+    public RestClient aiRestClient(
+            @Value("\${ai.provider.base-url}") String baseUrl,
+            @Value("\${ai.provider.api-key}") String apiKey) {
+
+        return RestClient.builder()
+                .baseUrl(baseUrl)
+                .defaultHeader("Authorization", "Bearer " + apiKey)
+                .build();
+    }
+}`
+      },
+      {
+        title:'Create the service interface',
+        file:'service/AiBreakdownService.java', isNew:true, lang:'java',
+        code:
+`package com.example.todoapi.service;
+
+import com.example.todoapi.dto.AiBreakdownRequest;
+import com.example.todoapi.dto.AiBreakdownResponse;
+
+public interface AiBreakdownService {
+    AiBreakdownResponse analyze(AiBreakdownRequest request);
+}`
+      },
+      {
+        title:'Implement the provider call',
+        desc:'Builds the prompt, calls the provider, parses its JSON reply, and drops any suggested due date that is in the past or lands after the original task\'s own due date instead of failing the whole response.',
+        file:'service/impl/AiBreakdownServiceImpl.java', isNew:true, lang:'java',
+        code:
+`package com.example.todoapi.service.impl;
+
+import com.example.todoapi.dto.AiBreakdownRequest;
+import com.example.todoapi.dto.AiBreakdownResponse;
+import com.example.todoapi.dto.SuggestedTask;
+import com.example.todoapi.exception.AiProviderException;
+import com.example.todoapi.service.AiBreakdownService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
+
+@Service
+@RequiredArgsConstructor
+public class AiBreakdownServiceImpl implements AiBreakdownService {
+
+    private static final String SYSTEM_PROMPT = """
+            You are a project-planning assistant. Reply with JSON only, matching
+            exactly this shape:
+            {"shouldBreakDown": boolean, "reason": string, "suggestedTasks":
+            [{"title": string, "description": string, "dueDate": "YYYY-MM-DD"}]}
+            """;
+
+    private final RestClient aiRestClient;
+    private final ObjectMapper objectMapper;
+
+    @Value("\${ai.provider.model}")
+    private String model;
+
+    @Override
+    public AiBreakdownResponse analyze(AiBreakdownRequest request) {
+        String prompt = buildPrompt(request);
+        String rawJson;
+
+        try {
+            String providerReply = aiRestClient.post()
+                    .uri("/chat/completions")
+                    .body(Map.of(
+                            "model", model,
+                            "response_format", Map.of("type", "json_object"),
+                            "messages", List.of(
+                                    Map.of("role", "system", "content", SYSTEM_PROMPT),
+                                    Map.of("role", "user", "content", prompt))
+                    ))
+                    .retrieve()
+                    .body(String.class);
+
+            JsonNode root = objectMapper.readTree(providerReply);
+            rawJson = root.at("/choices/0/message/content").asText();
+
+        } catch (Exception e) {
+            throw new AiProviderException("The AI breakdown service is temporarily unavailable", e);
+        }
+
+        AiBreakdownResponse parsed;
+        try {
+            parsed = objectMapper.readValue(rawJson, AiBreakdownResponse.class);
+        } catch (Exception e) {
+            throw new AiProviderException("The AI provider returned an unexpected response", e);
+        }
+
+        return sanitize(parsed, request.getDueDate());
+    }
+
+    private String buildPrompt(AiBreakdownRequest request) {
+        return """
+                Task title: %s
+                Task description: %s
+                Task due date: %s
+                Today's date: %s
+
+                Decide whether this task should be broken down into smaller subtasks.
+                If yes, suggest realistic subtasks with their own titles, descriptions,
+                and due dates that fit before the task's own due date.
+                """.formatted(
+                request.getTitle(),
+                request.getDescription() == null ? "(none provided)" : request.getDescription(),
+                request.getDueDate() == null ? "(none provided)" : request.getDueDate(),
+                LocalDate.now());
+    }
+
+    private AiBreakdownResponse sanitize(AiBreakdownResponse response, LocalDate originalDueDate) {
+        List<SuggestedTask> suggestions = response.getSuggestedTasks() == null
+                ? List.of()
+                : response.getSuggestedTasks().stream()
+                    .filter(t -> t.getDueDate() == null
+                            || (!t.getDueDate().isBefore(LocalDate.now())
+                                && (originalDueDate == null || !t.getDueDate().isAfter(originalDueDate))))
+                    .toList();
+
+        return AiBreakdownResponse.builder()
+                .shouldBreakDown(response.isShouldBreakDown())
+                .reason(response.getReason())
+                .suggestedTasks(suggestions)
+                .build();
+    }
+}`
+      },
+      {
+        title:'Create the controller',
+        desc:'A separate endpoint from task creation, exactly as the approved design calls for — this is the only new entry point.',
+        file:'controller/AiBreakdownController.java', isNew:true, lang:'java',
+        code:
+`package com.example.todoapi.controller;
+
+import com.example.todoapi.dto.AiBreakdownRequest;
+import com.example.todoapi.dto.AiBreakdownResponse;
+import com.example.todoapi.service.AiBreakdownService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/tasks/ai-breakdown")
+@RequiredArgsConstructor
+@Tag(name = "AI Task Breakdown", description = "Suggests smaller subtasks for a large task (suggestions only - nothing is saved)")
+public class AiBreakdownController {
+
+    private final AiBreakdownService aiBreakdownService;
+
+    @PostMapping
+    @Operation(summary = "Analyze a task and suggest a breakdown into smaller tasks")
+    public ResponseEntity<AiBreakdownResponse> analyze(@Valid @RequestBody AiBreakdownRequest request) {
+        return ResponseEntity.ok(aiBreakdownService.analyze(request));
+    }
+}`
+      },
+      {
+        title:'Configure the provider',
+        desc:'Never put the real key directly in application.yml — set AI_PROVIDER_API_KEY as an actual environment variable on your machine and leave this exactly as shown.',
+        file:'application.yml', isNew:false, lang:'yaml',
+        code:
+`ai:
+  provider:
+    base-url: https://api.deepseek.com/v1
+    model: deepseek-chat
+    api-key: \${AI_PROVIDER_API_KEY}`
+      }
+    ]
+  }
+];
+
+/* ---------- render ---------- */
+const tabsEl = document.getElementById('tabs');
+const mainEl = document.getElementById('main');
+
+function overviewHTML(){
+  const items = CRS.map(cr =>
+    `<li><div><div class="name">${cr.code} — ${cr.title}</div><div class="count">${cr.steps.length} steps</div></div>
+     <button data-goto="${cr.id}">Open →</button></li>`
+  ).join('');
+  return `
+    <p class="lede">Hands-on steps for implementing each approved Change Request manually, with ready-to-copy code for every file you need to add or change.</p>
+    <div class="note"><strong>Before you start:</strong> the technical design docs flagged that <code>CategoryServiceImpl.java</code> and <code>TaskServiceImpl.java</code> couldn't be fully re-read while writing them. The snippets below show exactly what to add — merge them into your real, current methods rather than pasting over them blindly, especially for the multi-line method bodies.</div>
+    <ul class="cr-index">${items}</ul>
+  `;
+}
+
+function stepHTML(cr, step, i){
+  const codeId = `${cr.id}-step${i}`;
+  const chipClass = step.isNew ? 'filechip new' : 'filechip';
+  return `
+    <div class="step">
+      <div class="step-head">
+        <span class="step-num">${i+1}</span>
+        <span class="step-title">${step.title}</span>
+      </div>
+      ${step.desc ? `<p class="step-desc">${step.desc}</p>` : ''}
+      <div class="${chipClass}">${step.file}</div>
+      <div class="codewrap">
+        <div class="bar"><button class="copybtn" data-code="${codeId}">Copy</button></div>
+        <pre><code id="${codeId}"></code></pre>
+      </div>
+    </div>
+  `;
+}
+
+function crPanelHTML(cr){
+  const steps = cr.steps.map((s,i) => stepHTML(cr, s, i)).join('');
+  return `
+    <div class="cr-head">
+      <div class="cr-eyebrow">${cr.code}</div>
+      <h2>${cr.title}</h2>
+      <p class="cr-objective">${cr.objective}</p>
+    </div>
+    ${steps}
+  `;
+}
+
+function build(){
+  // tabs
+  const overviewBtn = document.createElement('button');
+  overviewBtn.className = 'tab'; overviewBtn.textContent = 'Overview';
+  overviewBtn.dataset.panel = 'overview'; overviewBtn.setAttribute('role','tab');
+  tabsEl.appendChild(overviewBtn);
+
+  CRS.forEach(cr => {
+    const b = document.createElement('button');
+    b.className = 'tab'; b.textContent = cr.code;
+    b.dataset.panel = cr.id; b.setAttribute('role','tab');
+    tabsEl.appendChild(b);
+  });
+
+  // panels
+  const overviewPanel = document.createElement('div');
+  overviewPanel.className = 'panel'; overviewPanel.id = 'panel-overview';
+  overviewPanel.innerHTML = overviewHTML();
+  mainEl.appendChild(overviewPanel);
+
+  CRS.forEach(cr => {
+    const p = document.createElement('div');
+    p.className = 'panel'; p.id = `panel-${cr.id}`;
+    p.innerHTML = crPanelHTML(cr);
+    mainEl.appendChild(p);
+
+    cr.steps.forEach((s,i) => {
+      const el = document.getElementById(`${cr.id}-step${i}`);
+      if (el) el.textContent = s.code;
+    });
+  });
+
+  overviewPanel.querySelectorAll('[data-goto]').forEach(btn=>{
+    btn.addEventListener('click', ()=> showPanel(btn.dataset.goto));
+  });
+
+  tabsEl.querySelectorAll('.tab').forEach(btn=>{
+    btn.addEventListener('click', ()=> showPanel(btn.dataset.panel));
+  });
+
+  document.body.addEventListener('click', (e)=>{
+    const btn = e.target.closest('.copybtn');
+    if (!btn) return;
+    const code = document.getElementById(btn.dataset.code);
+    const text = code ? code.textContent : '';
+    const done = ()=>{
+      btn.textContent = 'Copied'; btn.classList.add('copied');
+      setTimeout(()=>{ btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    };
+    try{
+      navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopy(code, done));
+    }catch(err){
+      fallbackCopy(code, done);
+    }
+  });
+
+  function fallbackCopy(el, done){
+    try{
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const sel = window.getSelection();
+      sel.removeAllRanges(); sel.addRange(range);
+      document.execCommand('copy');
+      sel.removeAllRanges();
+      done();
+    }catch(e){ /* no-op: selection still visible for manual copy */ }
+  }
+
+  showPanel('overview');
+}
+
+function showPanel(id){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected','false'));
+  const panel = document.getElementById(`panel-${id}`);
+  const tab = Array.from(document.querySelectorAll('.tab')).find(t=>t.dataset.panel===id);
+  if (panel) panel.classList.add('active');
+  if (tab) tab.setAttribute('aria-selected','true');
+  window.scrollTo({top:0, behavior:'instant'});
+}
+
+build();
+</script>
+
+</body></html>

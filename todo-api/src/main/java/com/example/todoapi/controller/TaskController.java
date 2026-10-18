@@ -29,9 +29,13 @@ public class TaskController {
     private final TaskService taskService;
 
     @PostMapping
-    @Operation(summary = "Create a new task")
-    public ResponseEntity<TaskResponse> create(@Valid @RequestBody TaskRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(taskService.create(request));
+    @Operation(summary = "Create a new task",
+            description = "Optional 'Idempotency-Key' header (CR-002): a retried request with the " +
+                    "same key and the same body returns the original response instead of creating a duplicate task.")
+    public ResponseEntity<TaskResponse> create(
+            @Valid @RequestBody TaskRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(taskService.create(request, idempotencyKey));
     }
 
     @GetMapping
@@ -69,4 +73,3 @@ public class TaskController {
         return ResponseEntity.noContent().build();
     }
 }
-

@@ -45,7 +45,7 @@ class TaskServiceImplTest {
     }
 
     private Task savedTask(long id, Category category, TaskStatus status) {
-        return Task.builder().id(id).title("Title").status(status).category(category).build();
+        return Task.builder().id(id).title("Title").status(status).category(category).version(0L).build();
     }
 
     @Test
@@ -59,8 +59,8 @@ class TaskServiceImplTest {
             return t;
         });
 
-        TaskRequest request = new TaskRequest("Write report", null, null, null, 1L);
-        TaskResponse response = taskService.create(request);
+        TaskRequest request = new TaskRequest("Write report", null, null, null, 1L, null);
+        TaskResponse response = taskService.create(request, null);
 
         assertThat(response.getStatus()).isEqualTo(TaskStatus.TODO);
         assertThat(captor.getValue().getStatus()).isEqualTo(TaskStatus.TODO);
@@ -72,8 +72,8 @@ class TaskServiceImplTest {
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
         when(taskRepository.save(any(Task.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        TaskRequest request = new TaskRequest("Write report", null, TaskStatus.IN_PROGRESS, null, 1L);
-        TaskResponse response = taskService.create(request);
+        TaskRequest request = new TaskRequest("Write report", null, TaskStatus.IN_PROGRESS, null, 1L, null);
+        TaskResponse response = taskService.create(request, null);
 
         assertThat(response.getStatus()).isEqualTo(TaskStatus.IN_PROGRESS);
     }
@@ -82,9 +82,9 @@ class TaskServiceImplTest {
     void create_throwsNotFound_whenCategoryMissing() {
         when(categoryRepository.findById(99L)).thenReturn(Optional.empty());
 
-        TaskRequest request = new TaskRequest("Title", null, null, null, 99L);
+        TaskRequest request = new TaskRequest("Title", null, null, null, 99L, null);
 
-        assertThatThrownBy(() -> taskService.create(request))
+        assertThatThrownBy(() -> taskService.create(request, null))
                 .isInstanceOf(ResourceNotFoundException.class);
         verify(taskRepository, never()).save(any());
     }
@@ -100,7 +100,7 @@ class TaskServiceImplTest {
         // Status omitted on update: documents the consistent behavior - it
         // resets to TODO, the same default used on create, rather than
         // silently keeping the task's previous status.
-        TaskRequest request = new TaskRequest("Updated title", null, null, null, 1L);
+        TaskRequest request = new TaskRequest("Updated title", null, null, null, 1L, 0L);
         TaskResponse response = taskService.update(5L, request);
 
         assertThat(response.getStatus()).isEqualTo(TaskStatus.TODO);
@@ -110,7 +110,7 @@ class TaskServiceImplTest {
     void update_throwsNotFound_whenTaskMissing() {
         when(taskRepository.findById(5L)).thenReturn(Optional.empty());
 
-        TaskRequest request = new TaskRequest("X", null, null, null, 1L);
+        TaskRequest request = new TaskRequest("X", null, null, null, 1L, null);
 
         assertThatThrownBy(() -> taskService.update(5L, request))
                 .isInstanceOf(ResourceNotFoundException.class);
@@ -122,7 +122,7 @@ class TaskServiceImplTest {
         when(taskRepository.findById(5L)).thenReturn(Optional.of(existing));
         when(categoryRepository.findById(2L)).thenReturn(Optional.empty());
 
-        TaskRequest request = new TaskRequest("X", null, null, null, 2L);
+        TaskRequest request = new TaskRequest("X", null, null, null, 2L, 0L);
 
         assertThatThrownBy(() -> taskService.update(5L, request))
                 .isInstanceOf(ResourceNotFoundException.class);
@@ -137,7 +137,7 @@ class TaskServiceImplTest {
         when(categoryRepository.findById(2L)).thenReturn(Optional.of(newCategory));
         when(taskRepository.save(any(Task.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        TaskRequest request = new TaskRequest("X", null, TaskStatus.TODO, null, 2L);
+        TaskRequest request = new TaskRequest("X", null, TaskStatus.TODO, null, 2L, 0L);
         TaskResponse response = taskService.update(5L, request);
 
         assertThat(response.getCategoryId()).isEqualTo(2L);

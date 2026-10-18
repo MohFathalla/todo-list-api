@@ -36,6 +36,10 @@ public class Task {
     @Column(name = "DUE_DATE")
     private LocalDate dueDate;
 
+    @Version
+@Column(name = "VERSION", nullable = false)
+private Long version;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "CATEGORY_ID", nullable = false)
     private Category category;

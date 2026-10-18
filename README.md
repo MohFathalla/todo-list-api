@@ -47,6 +47,20 @@ Built with Java 17, Spring Boot 3, and Oracle.
 
 ---
 
+## Enhancements
+
+Five change requests were scoped and designed on top of the base API (see [`enhancements/`](./enhancements/) for the full change requests, technical designs, and test cases). **Three are implemented**, two remain design-only:
+
+| CR | Enhancement | Status |
+|---|---|---|
+| CR-001 | Optimistic Locking (`@Version` on Task, `409` on stale updates) | ✅ Implemented |
+| CR-002 | API Idempotency (`Idempotency-Key` header on task creation) | ✅ Implemented |
+| CR-003 | Scheduled Overdue-Task Detection | 📝 Designed, not implemented |
+| CR-004 | Audit Trail | 📝 Designed, not implemented |
+| CR-005 | AI-Assisted Task Breakdown (`POST /api/tasks/ai-breakdown`) | ✅ Implemented |
+
+---
+
 ## Diagrams
 
 A visual tour of the system, in order — what a client can do, how one request flows through it, how the data is shaped, and how the code is organized.

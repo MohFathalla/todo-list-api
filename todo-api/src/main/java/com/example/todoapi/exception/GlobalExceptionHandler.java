@@ -9,12 +9,20 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 import java.time.Instant;
 import java.util.List;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+public ResponseEntity<ErrorResponse> handleOptimisticLock(
+        ObjectOptimisticLockingFailureException ex, HttpServletRequest req) {
+    return build(HttpStatus.CONFLICT, "Conflict",
+            "This task was modified by another request. Reload it and try again.", null, req);
+}
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException ex, HttpServletRequest req) {
@@ -29,6 +37,22 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DuplicateCategoryNameException.class)
     public ResponseEntity<ErrorResponse> handleDuplicateCategoryName(DuplicateCategoryNameException ex, HttpServletRequest req) {
         return build(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), null, req);
+    }
+
+    // CR-002: a reused Idempotency-Key with a different request body, or a
+    // key that is still being processed by a concurrent request.
+    @ExceptionHandler(IdempotencyKeyConflictException.class)
+    public ResponseEntity<ErrorResponse> handleIdempotencyKeyConflict(IdempotencyKeyConflictException ex, HttpServletRequest req) {
+        return build(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), null, req);
+    }
+
+    // CR-005: the external AI provider timed out, failed, or returned something unusable.
+    // Does not affect normal task creation — this handler only ever fires for /ai-breakdown.
+    @ExceptionHandler(AiProviderException.class)
+    public ResponseEntity<ErrorResponse> handleAiProviderException(AiProviderException ex, HttpServletRequest req) {
+        return build(HttpStatus.BAD_GATEWAY, "AI Provider Unavailable",
+                "The AI breakdown service is temporarily unavailable. Try again later, or create the task directly.",
+                null, req);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
@@ -83,4 +107,3 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(body);
     }
 }
-

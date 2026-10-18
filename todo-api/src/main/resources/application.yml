@@ -34,3 +34,24 @@ springdoc:
     path: /swagger-ui.html
   api-docs:
     path: /api-docs
+
+# CR-002 (API Idempotency): how long an idempotency record stays valid.
+# Not auto-purged yet — there's no scheduler in the project yet (that's
+# CR-003); this property is just reserved for when a cleanup job is added.
+app:
+  idempotency:
+    retention-hours: 24
+
+# CR-005 (AI-Assisted Task Breakdown): a configurable, OpenAI-compatible
+# chat-completions provider.
+# IMPORTANT: never hard-code the real API key here. Set it through the
+# AI_PROVIDER_API_KEY environment variable before starting the app, e.g.
+#   Windows (PowerShell): $env:AI_PROVIDER_API_KEY = "sk-..."
+#   Then run the app from that same terminal.
+# base-url/model below default to DeepSeek's API as an example — point them
+# at whichever OpenAI-compatible provider you actually have a key for.
+ai:
+  provider:
+    base-url: https://api.deepseek.com
+    model: deepseek-chat
+    api-key: ${AI_PROVIDER_API_KEY:sk-sssss}
